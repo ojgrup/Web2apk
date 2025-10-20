@@ -1,6 +1,6 @@
 # File: .github/workflows/android_release_build.yml
 
-name: Build dan Sign AAB Rilis
+name: Build dan Sign AAB Rilis (Native Android)
 
 on:
   push:
@@ -12,44 +12,55 @@ jobs:
   build:
     runs-on: ubuntu-latest
     
+    # Kredensial Keystore dari GitHub Secrets
     env:
-      KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+      STORE_FILE: ${{ secrets.KEYSTORE_FILE }}
       KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
-      # Kode checkout secara default menempatkan file di root working directory.
 
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
+    # --- LANGKAH PENTING: Setup Java dan Keystore ---
+    - name: Set up JDK 11
+      uses: actions/setup-java@v4
       with:
-        flutter-version: '3.19.0'
-        channel: 'stable'
-
-    - name: Install dependencies
-      # Perintah ini HARUS dijalankan dari root proyek (tempat pubspec.yaml berada)
-      run: flutter pub get 
-
-    # --- Menyuntikkan Kredensial Keystore ke Gradle Properti ---
-    - name: Inject Keystore Properties
-      # Perintah ini menargetkan android/app/gradle.properties, 
-      # jadi kita harus memastikan path-nya benar dari root proyek.
+        distribution: 'temurin'
+        java-version: '11'
+        
+    - name: Copy Keystore File
+      # Asumsi file keystore Anda (misal: 'web2apk_rilis.jks') ada di root proyek
+      # atau di folder 'app'. Jika ia ada di 'android/app/', sesuaikan path-nya.
       run: |
-        echo "KEYSTORE_FILE=${{ env.KEYSTORE_FILE }}" >> android/app/gradle.properties
-        echo "KEYSTORE_PASSWORD=${{ env.KEYSTORE_PASSWORD }}" >> android/app/gradle.properties
-        echo "KEY_ALIAS=${{ env.KEY_ALIAS }}" >> android/app/gradle.properties
-        echo "KEY_PASSWORD=${{ env.KEY_PASSWORD }}" >> android/app/gradle.properties
-
+        # Asumsikan file keystore (contoh: web2apk_rilis.jks) sudah di-commit 
+        # di dalam folder 'app/' (sesuai dengan path build.gradle Anda).
+        # Jika Anda menaruhnya di root proyek, ganti 'app/' menjadi './'.
+        echo "Keystore file assumed to be at 'app/${{ env.STORE_FILE }}'"
+        
+    - name: Inject Keystore Properties
+      # Kita membuat file 'keystore.properties' di folder 'app' (atau 'android/app' jika itu strukturnya)
+      # yang akan dibaca oleh 'build.gradle' (Langkah ini menggantikan 'gradle.properties' home)
+      # Ganti path 'app/' menjadi 'android/app/' jika struktur proyek Anda adalah 'android/app/build.gradle'
+      run: |
+        echo "RELEASE_STORE_FILE=${{ env.STORE_FILE }}" >> app/keystore.properties
+        echo "RELEASE_STORE_PASSWORD=${{ env.STORE_PASSWORD }}" >> app/keystore.properties
+        echo "RELEASE_KEY_ALIAS=${{ env.KEY_ALIAS }}" >> app/keystore.properties
+        echo "RELEASE_KEY_PASSWORD=${{ env.KEY_PASSWORD }}" >> app/keystore.properties
+        
+    # --- LANGKAH KUNCI: Build dengan Gradle ---
+    - name: Grant Execute Permission for gradlew
+      run: chmod +x gradlew
+      
     - name: Build Signed Android App Bundle (AAB)
-      # Perintah ini HARUS dijalankan dari root proyek.
-      run: flutter build appbundle --release
-
+      # Perintah 'bundleRelease' akan membuat AAB yang ditandatangani
+      # berdasarkan konfigurasi signingConfigs.release di build.gradle
+      run: ./gradlew bundleRelease
+      
     - name: Upload Signed AAB Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Signed-Release-AAB
-        path: build/app/outputs/bundle/release/app-release.aab
+        path: app/build/outputs/bundle/release/app-release.aab # Path standar Native Android
         retention-days: 7
