@@ -6,13 +6,12 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Memungkinkan menjalankan secara manual
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
-    # Kredensial Keystore harus disiapkan sebagai Secrets di repositori GitHub Anda!
     env:
       KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
       KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -22,21 +21,22 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+      # Kode checkout secara default menempatkan file di root working directory.
 
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.19.0' # Sesuaikan versi Flutter Anda
+        flutter-version: '3.19.0'
         channel: 'stable'
 
     - name: Install dependencies
-      run: flutter pub get
+      # Perintah ini HARUS dijalankan dari root proyek (tempat pubspec.yaml berada)
+      run: flutter pub get 
 
     # --- Menyuntikkan Kredensial Keystore ke Gradle Properti ---
     - name: Inject Keystore Properties
-      # Kita langsung menambahkan properti yang dibaca di build.gradle
-      # ke file gradle.properties lokal di lingkungan build.
-      # Nama properti HARUS sama dengan yang ada di build.gradle!
+      # Perintah ini menargetkan android/app/gradle.properties, 
+      # jadi kita harus memastikan path-nya benar dari root proyek.
       run: |
         echo "KEYSTORE_FILE=${{ env.KEYSTORE_FILE }}" >> android/app/gradle.properties
         echo "KEYSTORE_PASSWORD=${{ env.KEYSTORE_PASSWORD }}" >> android/app/gradle.properties
@@ -44,6 +44,7 @@ jobs:
         echo "KEY_PASSWORD=${{ env.KEY_PASSWORD }}" >> android/app/gradle.properties
 
     - name: Build Signed Android App Bundle (AAB)
+      # Perintah ini HARUS dijalankan dari root proyek.
       run: flutter build appbundle --release
 
     - name: Upload Signed AAB Artifact
