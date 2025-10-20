@@ -1,3 +1,19 @@
+// app/build.gradle
+
+// --- 1. BAGIAN MEMBACA FILE PROPERTI (TAMBAH/GANTI INI) ---
+import java.io.FileInputStream
+import java.util.Properties
+
+// Cari file keystore.properties di folder yang sama (app/)
+def keystorePropertiesFile = file("keystore.properties") 
+def keystoreProperties = new Properties()
+
+// Muat properti jika file ditemukan
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+// -------------------------------------------------------------
+
 buildscript {
     repositories {
         google()
@@ -41,19 +57,17 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
 
-    // --- BAGIAN YANG DIPERBAIKI: Menggunakan Properti Gradle ---
+    // --- 2. BAGIAN SIGNINGCONFIGS YANG DIPERBAIKI (GANTI INI) ---
     signingConfigs {
         release {
-            // Kita menggunakan project.hasProperty() untuk memeriksa apakah properti 
-            // sudah disetel (misalnya, dari gradle.properties atau environment variables)
-            if (project.hasProperty('RELEASE_STORE_FILE')) {
-                storeFile file(project.property('RELEASE_STORE_FILE'))
-                storePassword project.property('RELEASE_STORE_PASSWORD')
-                keyAlias project.property('RELEASE_KEY_ALIAS')
-                keyPassword project.property('RELEASE_KEY_PASSWORD')
+            // Kita menggunakan properti yang dimuat dari keystoreProperties
+            if (keystoreProperties.containsKey('RELEASE_STORE_FILE')) {
+                // storeFile() menggunakan path relatif terhadap build.gradle (app/)
+                storeFile file(keystoreProperties['RELEASE_STORE_FILE'])
+                storePassword keystoreProperties['RELEASE_STORE_PASSWORD']
+                keyAlias keystoreProperties['RELEASE_KEY_ALIAS']
+                keyPassword keystoreProperties['RELEASE_KEY_PASSWORD']
             }
-            // Jika properti tidak ditemukan (misalnya, saat build debug),
-            // blok ini akan dilewati dan tidak akan ada hardcode credentials.
         }
     }
     // ---------------------------------------------------------
