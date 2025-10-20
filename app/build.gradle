@@ -27,7 +27,7 @@ buildscript {
 allprojects {
     repositories {
         google()
-        mavenCenter()
+        mavenCentral()
     }
 }
 
