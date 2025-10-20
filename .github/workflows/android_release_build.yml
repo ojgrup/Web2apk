@@ -5,49 +5,40 @@ name: Build dan Sign AAB Rilis (Native Android)
 on:
   push:
     branches:
-      - master # Mengganti 'main' jika repositori Anda menggunakan 'master'
+      - master # Sesuaikan dengan branch utama Anda
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
-    # Kredensial Keystore dari GitHub Secrets. 
-    # PASTIKAN NAMA SECRETS DI SINI SAMA DENGAN YANG ANDA BUAT!
-    env:
-      STORE_FILE: ${{ secrets.MYAPP_RELEASE_STORE_FILE }}      
-      KEY_ALIAS: ${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}              
-      STORE_PASS: ${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}
-      KEY_PASS: ${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}
+    # HAPUS BLOK ENV SEPENUHNYA! Kita akan gunakan secrets langsung di bawah.
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Set up JDK 17 # Menggunakan JDK 17 sesuai log terakhir Anda
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
         
     - name: Inject Keystore Properties
-      # Menyuntikkan Secrets ke file keystore.properties. 
-      # Nama properti SAMA DENGAN yang dibaca di build.gradle
+      # PERBAIKAN KRUSIAL: Menyuntikkan Secrets langsung ke file keystore.properties.
       run: |
-        echo "MYAPP_RELEASE_STORE_FILE=${{ env.STORE_FILE }}" > app/keystore.properties
-        echo "MYAPP_RELEASE_STORE_PASSWORD=${{ env.STORE_PASS }}" >> app/keystore.properties
-        echo "MYAPP_RELEASE_KEY_ALIAS=${{ env.KEY_ALIAS }}" >> app/keystore.properties
-        echo "MYAPP_RELEASE_KEY_PASSWORD=${{ env.KEY_PASS }}" >> app/keystore.properties
+        echo "MYAPP_RELEASE_STORE_FILE=${{ secrets.MYAPP_RELEASE_STORE_FILE }}" > app/keystore.properties
+        echo "MYAPP_RELEASE_STORE_PASSWORD=${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}" >> app/keystore.properties
+        echo "MYAPP_RELEASE_KEY_ALIAS=${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}" >> app/keystore.properties
+        echo "MYAPP_RELEASE_KEY_PASSWORD=${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}" >> app/keystore.properties
         
     - name: Grant Execute Permission for gradlew
       run: chmod +x gradlew
       
     - name: Build Signed Android App Bundle (AAB)
-      # PERBAIKAN KRUSIAL: Menjalankan bundleRelease untuk build RILIS
+      # PERBAIKAN KRUSIAL: Menjalankan bundleRelease
       run: ./gradlew bundleRelease
       
-    # Catatan: Langkah 'Build Debug APK via make.sh' telah dihilangkan dari sini.
-    
     - name: Upload Signed AAB Artifact
       uses: actions/upload-artifact@v4
       with:
