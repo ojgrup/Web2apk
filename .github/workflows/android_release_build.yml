@@ -1,46 +1,12 @@
-# File: .github/workflows/android_release_build.yml
+# ... di .github/workflows/android_release_build.yml
 
-name: Build dan Sign AAB Rilis (Via make.sh)
-
-on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    
-    # MENYUNTIKKAN SECRETS SEBAGAI ENVIRONMENT VARIABLES
-    env:
-      MYAPP_RELEASE_STORE_FILE: app/${{ secrets.MYAPP_RELEASE_STORE_FILE }}
-      MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}
-      MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}
-      MYAPP_RELEASE_KEY_PASSWORD: ${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}
-
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
-
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-        
-    - name: Grant Execute Permission for make.sh dan gradlew
-      run: |
-        chmod +x gradlew
-        chmod +x make.sh
-      
     - name: Build Signed App Bundle via make.sh
-      # Menjalankan make.sh dengan argumen build 'bundleRelease'.
       run: ./make.sh bundleRelease 
 
     - name: Upload Signed AAB Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Signed-Release-AAB
-        path: app/build/outputs/bundle/release/app-release.aab 
+        # PERBAIKAN: Menggunakan wildcard untuk menemukan AAB di folder rilis
+        path: app/build/outputs/bundle/release/**/*.aab 
         retention-days: 7
