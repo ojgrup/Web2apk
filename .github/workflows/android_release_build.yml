@@ -1,18 +1,23 @@
 # File: .github/workflows/android_release_build.yml
 
-name: Build dan Sign AAB Rilis (Native Android)
+name: Build dan Sign AAB Rilis (Via make.sh)
 
 on:
   push:
     branches:
-      - master # Sesuaikan dengan branch utama Anda
+      - master
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
-    # HAPUS BLOK ENV SEPENUHNYA! Kita akan gunakan secrets langsung di bawah.
+    # MENYUNTIKKAN SECRETS SEBAGAI ENVIRONMENT VARIABLES
+    env:
+      MYAPP_RELEASE_STORE_FILE: app/${{ secrets.MYAPP_RELEASE_STORE_FILE }}
+      MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}
+      MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}
+      MYAPP_RELEASE_KEY_PASSWORD: ${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}
 
     steps:
     - name: Checkout Code
@@ -24,21 +29,15 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
         
-    - name: Inject Keystore Properties
-      # PERBAIKAN KRUSIAL: Menyuntikkan Secrets langsung ke file keystore.properties.
+    - name: Grant Execute Permission for make.sh dan gradlew
       run: |
-        echo "MYAPP_RELEASE_STORE_FILE=${{ secrets.MYAPP_RELEASE_STORE_FILE }}" > app/keystore.properties
-        echo "MYAPP_RELEASE_STORE_PASSWORD=${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}" >> app/keystore.properties
-        echo "MYAPP_RELEASE_KEY_ALIAS=${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}" >> app/keystore.properties
-        echo "MYAPP_RELEASE_KEY_PASSWORD=${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}" >> app/keystore.properties
-        
-    - name: Grant Execute Permission for gradlew
-      run: chmod +x gradlew
+        chmod +x gradlew
+        chmod +x make.sh
       
-    - name: Build Signed Android App Bundle (AAB)
-      # PERBAIKAN KRUSIAL: Menjalankan bundleRelease
-      run: ./gradlew bundleRelease
-      
+    - name: Build Signed App Bundle via make.sh
+      # Menjalankan make.sh dengan argumen build 'bundleRelease'.
+      run: ./make.sh bundleRelease 
+
     - name: Upload Signed AAB Artifact
       uses: actions/upload-artifact@v4
       with:
