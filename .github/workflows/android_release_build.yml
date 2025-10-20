@@ -1,25 +1,19 @@
-# ... di .github/workflows/android_release_build.yml
+# ... (Di dalam bagian 'steps:')
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    
-    # Kredensial Keystore dari GitHub Secrets
-    env:
-      STORE_FILE: ${{ secrets.MYAPP_RELEASE_STORE_FILE }} # <-- Gunakan nama Secret yang baru
-      KEY_ALIAS: ${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}
-      STORE_PASS: ${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}
-      KEY_PASS: ${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}
+    # Hapus atau ganti langkah yang menghasilkan Debug APK (seperti yang ditunjukkan di log Anda)
+    # - name: Build Debug APK via make.sh
+    #   run: ./make.sh # Atau perintah yang menghasilkan Debug
 
-    steps:
-      # ... langkah-langkah lainnya
+    - name: Build Signed Android App Bundle (AAB)
+      # Gunakan perintah Gradle yang BENAR untuk membuat App Bundle RILIS yang sudah ditandatangani.
+      run: ./gradlew bundleRelease 
+      # Pastikan file gradlew berada di root proyek Anda.
+      
+    - name: Upload Signed AAB Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Signed-Release-AAB
+        path: app/build/outputs/bundle/release/app-release.aab
+        retention-days: 7
 
-      - name: Inject Keystore Properties
-        run: |
-          # Perhatikan: Nama properti di sini HARUS sama dengan yang ada di build.gradle
-          echo "MYAPP_RELEASE_STORE_FILE=${{ env.STORE_FILE }}" > app/keystore.properties
-          echo "MYAPP_RELEASE_STORE_PASSWORD=${{ env.STORE_PASS }}" >> app/keystore.properties
-          echo "MYAPP_RELEASE_KEY_ALIAS=${{ env.KEY_ALIAS }}" >> app/keystore.properties
-          echo "MYAPP_RELEASE_KEY_PASSWORD=${{ env.KEY_PASS }}" >> app/keystore.properties
-
-      # ... langkah-langkah selanjutnya
+# ...
