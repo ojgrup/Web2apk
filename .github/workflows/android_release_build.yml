@@ -1,47 +1,62 @@
-# File: .github/workflows/android_release_build.yml
-
-name: Build dan Sign AAB Rilis (Via make.sh)
+name: Build and Sign AAB Rilis (Via make.sh)
 
 on:
   push:
     branches:
-      - master
-  workflow_dispatch:
+      - master # Sesuaikan jika branch utama Anda berbeda
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
-    # MENYUNTIKKAN SECRETS SEBAGAI ENVIRONMENT VARIABLES
-    env:
-      MYAPP_RELEASE_STORE_FILE: app/${{ secrets.MYAPP_RELEASE_STORE_FILE }}
-      MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}
-      MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}
-      MYAPP_RELEASE_KEY_PASSWORD: ${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}
-
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-        
-    - name: Grant Execute Permission for make.sh dan gradlew
-      run: |
-        chmod +x gradlew
-        chmod +x make.sh
-      
-    - name: Build Signed App Bundle via make.sh
-      # Menjalankan make.sh dengan argumen build 'bundleRelease'.
-      run: ./make.sh bundleRelease 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
 
-    - name: Upload Signed AAB Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Signed-Release-AAB
-        # MENGGUNAKAN WILDCARD UNTUK MENEMUKAN FILE AAB YANG DIBUAT
-        path: app/build/outputs/bundle/release/**/*.aab 
-        retention-days: 7
+      - name: Grant Execute Permission for make.sh
+        run: chmod +x make.sh
+
+      # --- START: PERBAIKAN UNTUK MENEMUKAN ARTIFACT AAB ---
+      - name: Get App Name from Gradle
+        id: get_appname
+        run: |
+          # Ambil nama aplikasi dari build.gradle (misalnya, 'web2apk')
+          APP_NAME=$(grep -Po '(?<=applicationId "com\.)[^.]*' app/build.gradle)
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "App name for artifact: $APP_NAME"
+
+      # Catatan: Langkah "Inject Keystore Properties" dihapus karena sudah dilakukan di make.sh
+      # Kami hanya perlu mendefinisikan environment variables di sini
+      - name: Define Signing Environment Variables
+        run: |
+          echo "MYAPP_RELEASE_STORE_FILE=app/${{ secrets.MYAPP_RELEASE_STORE_FILE }}" >> $GITHUB_ENV
+          echo "MYAPP_RELEASE_STORE_PASSWORD=${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}" >> $GITHUB_ENV
+          echo "MYAPP_RELEASE_KEY_ALIAS=${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}" >> $GITHUB_ENV
+          echo "MYAPP_RELEASE_KEY_PASSWORD=${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}" >> $GITHUB_ENV
+        env:
+          # Pastikan semua secrets telah diset di repositori Anda
+          MYAPP_RELEASE_STORE_FILE: ${{ secrets.MYAPP_RELEASE_STORE_FILE }}
+          MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}
+          MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}
+          MYAPP_RELEASE_KEY_PASSWORD: ${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}
+
+      - name: Build Signed App Bundle via make.sh
+        # Panggil make.sh build. make.sh akan secara otomatis menjalankan bundleRelease
+        run: ./make.sh build
+
+      - name: Upload Signed AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # Nama artifact disesuaikan dengan nama aplikasi
+          name: ${{ steps.get_appname.outputs.APP_NAME }}-release-aab
+          # JALUR BARU: Mengambil file AAB yang namanya sudah disesuaikan di root proyek
+          path: ${{ steps.get_appname.outputs.APP_NAME }}.aab 
+          retention-days: 7
+      # --- END: PERBAIKAN UNTUK MENEMUKAN ARTIFACT AAB ---
