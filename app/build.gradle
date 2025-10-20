@@ -4,7 +4,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.3.0'
+        // Pertahankan versi Gradle Plugin Anda
+        classpath 'com.android.tools.build:gradle:7.3.0' 
     }
 }
 
@@ -32,8 +33,6 @@ android {
     //Successtar Edit
     lintOptions {
         checkReleaseBuilds false
-        // Or, if you prefer, you can continue to check for errors in release builds,
-        // but continue the build even when errors are found:
         abortOnError false
     }
 
@@ -42,20 +41,29 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
 
+    // --- BAGIAN YANG DIPERBAIKI: Menggunakan Properti Gradle ---
     signingConfigs {
         release {
-            storeFile file("my-release-key.jks")
-            storePassword "123456"
-            keyAlias "my"
-            keyPassword "123456"
+            // Kita menggunakan project.hasProperty() untuk memeriksa apakah properti 
+            // sudah disetel (misalnya, dari gradle.properties atau environment variables)
+            if (project.hasProperty('RELEASE_STORE_FILE')) {
+                storeFile file(project.property('RELEASE_STORE_FILE'))
+                storePassword project.property('RELEASE_STORE_PASSWORD')
+                keyAlias project.property('RELEASE_KEY_ALIAS')
+                keyPassword project.property('RELEASE_KEY_PASSWORD')
+            }
+            // Jika properti tidak ditemukan (misalnya, saat build debug),
+            // blok ini akan dilewati dan tidak akan ada hardcode credentials.
         }
     }
+    // ---------------------------------------------------------
 
     buildTypes {
         release {
-            minifyEnabled true
+            // Ini sudah benar
+            minifyEnabled true 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            signingConfig signingConfigs.release // Ini sudah benar
         }
     }
 }
