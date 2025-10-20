@@ -1,18 +1,6 @@
 // app/build.gradle
 
-// --- BAGIAN 1: MEMBACA FILE PROPERTI (ADA DI ATAS) ---
-import java.io.FileInputStream
-import java.util.Properties
-
-// Cari file keystore.properties di folder yang sama (app/)
-def keystorePropertiesFile = file("keystore.properties") 
-def keystoreProperties = new Properties()
-
-// Muat properti jika file ditemukan
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-}
-// -------------------------------------------------------------
+// HAPUS SEMUA IMPOR DAN KODE PEMBACAAN keystoreProperties DI BAGIAN ATAS FILE.
 
 buildscript {
     repositories {
@@ -27,7 +15,7 @@ buildscript {
 allprojects {
     repositories {
         google()
-        mavenCentral() // Sudah diperbaiki dari mavenCentral()
+        mavenCentral()
     }
 }
 
@@ -45,7 +33,6 @@ android {
         versionName "1.0"
     }
 
-    //Successtar Edit
     lintOptions {
         checkReleaseBuilds false
         abortOnError false
@@ -56,23 +43,17 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
 
-    // --- BAGIAN 2: SIGNINGCONFIGS YANG DIPERBAIKI (PATH ABSOLUT) ---
     signingConfigs {
         release {
-            // Menggunakan properti yang dimuat dari keystoreProperties
-            if (keystoreProperties.containsKey('MYAPP_RELEASE_STORE_FILE')) {
-                
-                // PERBAIKAN PATH KRUSIAL: Menggunakan rootProject.file("app/")
-                def keystoreFileName = keystoreProperties['MYAPP_RELEASE_STORE_FILE']
-                storeFile rootProject.file("app/" + keystoreFileName) 
-                
-                storePassword keystoreProperties['MYAPP_RELEASE_STORE_PASSWORD']
-                keyAlias keystoreProperties['MYAPP_RELEASE_KEY_ALIAS']
-                keyPassword keystoreProperties['MYAPP_RELEASE_KEY_PASSWORD']
+            // Membaca properti yang disuntikkan oleh make.sh
+            if (project.hasProperty('MYAPP_RELEASE_STORE_FILE')) {
+                storeFile file(project.property('MYAPP_RELEASE_STORE_FILE')) 
+                storePassword project.property('MYAPP_RELEASE_STORE_PASSWORD')
+                keyAlias project.property('MYAPP_RELEASE_KEY_ALIAS')
+                keyPassword project.property('MYAPP_RELEASE_KEY_PASSWORD')
             }
         }
     }
-    // ---------------------------------------------------------
 
     buildTypes {
         release {
