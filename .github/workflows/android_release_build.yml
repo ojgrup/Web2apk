@@ -1,9 +1,10 @@
-name: Build and Sign AAB Rilis (Via make.sh)
+name: Build dan Sign AAB Rilis (Direct Gradle)
 
 on:
   push:
     branches:
-      - master # Sesuaikan jika branch utama Anda berbeda
+      # Ganti dengan branch utama Anda jika bukan master (misalnya: main)
+      - master 
 
 jobs:
   build:
@@ -20,11 +21,7 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Grant Execute Permission for make.sh
-        run: chmod +x make.sh
-
-      # --- START: PERBAIKAN UNTUK MENEMUKAN ARTIFACT AAB ---
-      - name: Get App Name from Gradle
+      - name: Extract App Name (for Artifact Naming)
         id: get_appname
         run: |
           # Ambil nama aplikasi dari build.gradle (misalnya, 'web2apk')
@@ -32,31 +29,38 @@ jobs:
           echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
           echo "App name for artifact: $APP_NAME"
 
-      # Catatan: Langkah "Inject Keystore Properties" dihapus karena sudah dilakukan di make.sh
-      # Kami hanya perlu mendefinisikan environment variables di sini
-      - name: Define Signing Environment Variables
+      - name: Configure Signing Properties
+        # Langkah ini akan menyuntikkan secrets ke file gradle.properties sebelum build
         run: |
-          echo "MYAPP_RELEASE_STORE_FILE=app/${{ secrets.MYAPP_RELEASE_STORE_FILE }}" >> $GITHUB_ENV
-          echo "MYAPP_RELEASE_STORE_PASSWORD=${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}" >> $GITHUB_ENV
-          echo "MYAPP_RELEASE_KEY_ALIAS=${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}" >> $GITHUB_ENV
-          echo "MYAPP_RELEASE_KEY_PASSWORD=${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}" >> $GITHUB_ENV
+          # Periksa apakah file keystore ada. Jika tidak ada, build akan gagal di Gradle.
+          if [ ! -f "app/${{ secrets.MYAPP_RELEASE_STORE_FILE }}" ]; then
+            echo "Error: Keystore file app/${{ secrets.MYAPP_RELEASE_STORE_FILE }} not found in repository."
+            exit 1
+          fi
+          
+          echo "MYAPP_RELEASE_STORE_FILE=${{ secrets.MYAPP_RELEASE_STORE_FILE }}" >> gradle.properties
+          echo "MYAPP_RELEASE_STORE_PASSWORD=${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}" >> gradle.properties
+          echo "MYAPP_RELEASE_KEY_ALIAS=${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}" >> gradle.properties
+          echo "MYAPP_RELEASE_KEY_PASSWORD=${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}" >> gradle.properties
         env:
-          # Pastikan semua secrets telah diset di repositori Anda
           MYAPP_RELEASE_STORE_FILE: ${{ secrets.MYAPP_RELEASE_STORE_FILE }}
           MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}
           MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}
           MYAPP_RELEASE_KEY_PASSWORD: ${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}
 
-      - name: Build Signed App Bundle via make.sh
-        # Panggil make.sh build. make.sh akan secara otomatis menjalankan bundleRelease
-        run: ./make.sh build
+      - name: Grant Execute Permission for Gradle Wrapper
+        run: chmod +x gradlew
+
+      - name: Build Signed App Bundle (Direct Gradle)
+        # Langsung panggil task Gradle untuk membuat AAB yang sudah ditandatangani
+        run: ./gradlew :app:bundleRelease --stacktrace
 
       - name: Upload Signed AAB Artifact
         uses: actions/upload-artifact@v4
         with:
-          # Nama artifact disesuaikan dengan nama aplikasi
           name: ${{ steps.get_appname.outputs.APP_NAME }}-release-aab
-          # JALUR BARU: Mengambil file AAB yang namanya sudah disesuaikan di root proyek
-          path: ${{ steps.get_appname.outputs.APP_NAME }}.aab 
+          # JALUR BARU: Mengambil file AAB di lokasi default Gradle.
+          # Catatan: make.sh (yang lama) memindahkan file. Karena kita tidak menggunakan make.sh lagi,
+          # kita kembali ke lokasi output standar.
+          path: app/build/outputs/bundle/release/*.aab 
           retention-days: 7
-      # --- END: PERBAIKAN UNTUK MENEMUKAN ARTIFACT AAB ---
