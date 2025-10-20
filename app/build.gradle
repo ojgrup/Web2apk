@@ -1,6 +1,6 @@
 // app/build.gradle
 
-// --- 1. BAGIAN MEMBACA FILE PROPERTI (TAMBAH/GANTI INI) ---
+// --- BAGIAN 1: MEMBACA FILE PROPERTI (PASTIKAN ADA DI ATAS) ---
 import java.io.FileInputStream
 import java.util.Properties
 
@@ -20,7 +20,6 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // Pertahankan versi Gradle Plugin Anda
         classpath 'com.android.tools.build:gradle:7.3.0' 
     }
 }
@@ -57,16 +56,15 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
 
-    // --- 2. BAGIAN SIGNINGCONFIGS YANG DIPERBAIKI (GANTI INI) ---
+    // --- BAGIAN 2: SIGNINGCONFIGS YANG MENGGUNAKAN PROPERTI (MYAPP_RELEASE) ---
     signingConfigs {
         release {
-            // Kita menggunakan properti yang dimuat dari keystoreProperties
-            if (keystoreProperties.containsKey('RELEASE_STORE_FILE')) {
-                // storeFile() menggunakan path relatif terhadap build.gradle (app/)
-                storeFile file(keystoreProperties['RELEASE_STORE_FILE'])
-                storePassword keystoreProperties['RELEASE_STORE_PASSWORD']
-                keyAlias keystoreProperties['RELEASE_KEY_ALIAS']
-                keyPassword keystoreProperties['RELEASE_KEY_PASSWORD']
+            // Menggunakan properti yang dimuat dari keystoreProperties
+            if (keystoreProperties.containsKey('MYAPP_RELEASE_STORE_FILE')) {
+                storeFile file(keystoreProperties['MYAPP_RELEASE_STORE_FILE'])
+                storePassword keystoreProperties['MYAPP_RELEASE_STORE_PASSWORD']
+                keyAlias keystoreProperties['MYAPP_RELEASE_KEY_ALIAS']
+                keyPassword keystoreProperties['MYAPP_RELEASE_KEY_PASSWORD']
             }
         }
     }
@@ -74,10 +72,9 @@ android {
 
     buildTypes {
         release {
-            // Ini sudah benar
             minifyEnabled true 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release // Ini sudah benar
+            signingConfig signingConfigs.release
         }
     }
 }
