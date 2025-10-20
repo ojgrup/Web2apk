@@ -1,6 +1,6 @@
 // app/build.gradle
 
-// --- BAGIAN 1: MEMBACA FILE PROPERTI (PASTIKAN ADA DI ATAS) ---
+// --- BAGIAN 1: MEMBACA FILE PROPERTI (ADA DI ATAS) ---
 import java.io.FileInputStream
 import java.util.Properties
 
@@ -27,7 +27,7 @@ buildscript {
 allprojects {
     repositories {
         google()
-        mavenCentral()
+        mavenCentral() // Sudah diperbaiki dari mavenCentral()
     }
 }
 
@@ -56,12 +56,16 @@ android {
         targetCompatibility JavaVersion.VERSION_11
     }
 
-    // --- BAGIAN 2: SIGNINGCONFIGS YANG MENGGUNAKAN PROPERTI (MYAPP_RELEASE) ---
+    // --- BAGIAN 2: SIGNINGCONFIGS YANG DIPERBAIKI (PATH ABSOLUT) ---
     signingConfigs {
         release {
             // Menggunakan properti yang dimuat dari keystoreProperties
             if (keystoreProperties.containsKey('MYAPP_RELEASE_STORE_FILE')) {
-                storeFile file(keystoreProperties['MYAPP_RELEASE_STORE_FILE'])
+                
+                // PERBAIKAN PATH KRUSIAL: Menggunakan rootProject.file("app/")
+                def keystoreFileName = keystoreProperties['MYAPP_RELEASE_STORE_FILE']
+                storeFile rootProject.file("app/" + keystoreFileName) 
+                
                 storePassword keystoreProperties['MYAPP_RELEASE_STORE_PASSWORD']
                 keyAlias keystoreProperties['MYAPP_RELEASE_KEY_ALIAS']
                 keyPassword keystoreProperties['MYAPP_RELEASE_KEY_PASSWORD']
