@@ -410,8 +410,6 @@ set_icon() {
     
     if [ -z "$icon_path" ]; then
         icon_path="$default_icon"
-    fi
-
     if [ -n "${CONFIG_DIR:-}" ] && [[ "$icon_path" != /* ]]; then
         icon_path="$CONFIG_DIR/$icon_path"
     fi
@@ -458,7 +456,7 @@ set_userscripts() {
     local existing_scripts=()
     while IFS= read -r file; do
         existing_scripts+=("$(basename "$file")")
-    endo< <(find "$scripts_dir" -mindepth 1 -type f)
+    done < <(find "$scripts_dir" -mindepth 1 -type f)
 
     local source_files=()
     for pattern in "$@"; do
