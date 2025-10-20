@@ -29,11 +29,11 @@ error() {
     exit 1
 }
 
-# --- FUNGSI TRY YANG DIPERBAIKI (MENGHINDARI SYNTAX ERROR) ---
+# --- FUNGSI TRY YANG DIPERBAIKI (SPASI DI SEKITAR TANDA KURUNG SIKU) ---
 try() {
     local log_file=$(mktemp)
     
-    # PERBAIKAN SINTAKSIS: Memastikan ada spasi di sekitar '[' dan ']'
+    # Memastikan ada spasi di sekitar '[' dan ']'
     if [ $# -eq 1 ]; then
         if ! eval "$1" &> "$log_file"; then
             echo -e "${RED}[!]${NC} Failed: $1" >&2
@@ -100,6 +100,7 @@ set_var() {
     fi
 }
 
+# --- FUNGSI merge_config_with_default YANG DIPERBAIKI (SPASI DI SEKITAR TANDA KURUNG SIKU) ---
 merge_config_with_default() {
     local default_conf="app/default.conf"
     local user_conf="$1"
@@ -111,7 +112,9 @@ merge_config_with_default() {
 
     while IFS= read -r line; do
         key=$(echo "$line" | cut -d '=' -f1 | xargs)
+        # PERBAIKAN: Memastikan ada spasi di sekitar '[' dan ']'
         if [ -n "$key" ]; then
+            # PERBAIKAN: Memastikan ada spasi di sekitar '[' dan ']'
             if ! grep -q -E "^[[:space:]]*$key[[:space:]]*=" "$user_conf"; then
                 echo "$line" >> "$temp_defaults"
             fi
@@ -123,6 +126,7 @@ merge_config_with_default() {
     rm -f "$temp_defaults"
     echo "$merged_conf"
 }
+# --- AKHIR FUNGSI merge_config_with_default YANG DIPERBAIKI ---
 
 apply_config() {
     local config_file="${1:-webapk.conf}"
