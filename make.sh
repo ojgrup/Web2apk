@@ -215,6 +215,7 @@ apk() {
             echo -e "Final App Bundle location: ${GREEN}$built_aab_path${NC}"
             echo -e "Size: ${BLUE}$(du -h "$built_aab_path" | cut -f1)${NC}"
             echo -e "Package: ${BLUE}com.${appname}.webtoapk${NC}"
+            echo -e "NOTE: The final file is copied to the project root as ${output_file}${NC}"
             echo -e "${BOLD}----------------${NC}"
         else
             error "Build failed: Could not find AAB in $output_dir. Check Gradle logs for error."
@@ -410,6 +411,8 @@ set_icon() {
     
     if [ -z "$icon_path" ]; then
         icon_path="$default_icon"
+    fi # <--- KESALAHAN SINTAKSIS KEMUNGKINAN DI SEKITAR SINI (SUDAH DIPERBAIKI DI VERSI INI)
+
     if [ -n "${CONFIG_DIR:-}" ] && [[ "$icon_path" != /* ]]; then
         icon_path="$CONFIG_DIR/$icon_path"
     fi
