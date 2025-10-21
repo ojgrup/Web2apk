@@ -1,11 +1,25 @@
-name: Build dan Sign AAB/APK Rilis (Direct Gradle)
+name: Build via Web Configuration
 
 on:
-  push:
-    branches:
-      # Ganti dengan branch utama Anda jika bukan master (misalnya: main)
-      - master 
-
+  # Ini adalah trigger utama: Menerima input dari website melalui API dispatch
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: 'URL Website (e.g., https://example.com)'
+        required: true
+        default: 'https://example.com'
+      app_id:
+        description: 'Package ID (e.g., myapp)'
+        required: true
+        default: 'web2apk'
+      app_name:
+        description: 'Display Name Aplikasi'
+        required: true
+        default: 'My Web App'
+      icon_url:
+        description: 'URL ke file PNG Ikon (192x192 disarankan)'
+        required: false
+      
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,18 +35,45 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Extract App Name (for Artifact Naming)
-        id: get_appname
+      # --- LANGKAH BARU: MEMBUAT KONFIGURASI DARI INPUT WEBSITE ---
+      - name: Generate Config File
+        id: generate_config
         run: |
-          # Ambil nama aplikasi dari build.gradle (misalnya, 'web2apk')
-          APP_NAME=$(grep -Po '(?<=applicationId "com\.)[^.]*' app/build.gradle)
+          # 1. Tulis konfigurasi ke webapk.conf
+          echo "url = ${{ github.event.inputs.app_url }}" > webapk.conf
+          echo "id = ${{ github.event.inputs.app_id }}" >> webapk.conf
+          echo "name = ${{ github.event.inputs.app_name }}" >> webapk.conf
+          echo "userAgent = MobileApp" >> webapk.conf
+          
+          # 2. Tangani Ikon: Download ikon jika URL disediakan
+          ICON_PATH=""
+          if [ -n "${{ github.event.inputs.icon_url }}" ]; then
+              echo "Downloading custom icon from: ${{ github.event.inputs.icon_url }}"
+              ICON_URL="${{ github.event.inputs.icon_url }}"
+              
+              # Tentukan nama file yang didownload
+              ICON_FILE="app/downloaded_icon.png"
+              
+              # Download ikon
+              curl -L -o "$ICON_FILE" "$ICON_URL"
+              
+              if [ -f "$ICON_FILE" ]; then
+                  echo "icon_file_path=$ICON_FILE" >> $GITHUB_OUTPUT
+                  ICON_PATH="app/downloaded_icon.png"
+                  echo "icon = $ICON_PATH" >> webapk.conf
+                  echo "Ikon akan diambil dari $ICON_PATH"
+              else
+                  echo "Warning: Failed to download icon from URL. Using default."
+              fi
+          fi
+          
+          # 3. Ekstrak App Name untuk penamaan Artifact
+          APP_NAME="${{ github.event.inputs.app_id }}"
           echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
-          echo "App name for artifact: $APP_NAME"
 
+      # --- KONFIGURASI SIGNING (Tetap sama) ---
       - name: Configure Signing Properties
-        # Langkah ini akan menyuntikkan secrets ke file gradle.properties sebelum build
         run: |
-          # Periksa apakah file keystore ada. Jika tidak ada, build akan gagal di Gradle.
           if [ ! -f "app/${{ secrets.MYAPP_RELEASE_STORE_FILE }}" ]; then
             echo "Error: Keystore file app/${{ secrets.MYAPP_RELEASE_STORE_FILE }} not found in repository."
             exit 1
@@ -51,31 +92,37 @@ jobs:
       - name: Grant Execute Permission for Gradle Wrapper
         run: chmod +x gradlew
 
-      # =======================================================
-      # LANGKAH 1: BUILD SIGNED APP BUNDLE (AAB) - Untuk Google Play
-      # =======================================================
+      # --- BUILD DAN UPLOAD ARTIFACT (Harus menggunakan make.sh untuk apply_config) ---
+      # Karena kita tidak ingin menggunakan make.sh lagi, kita harus meniru fungsi utamanya: chid, rename, set_var, set_icon.
+      
+      # PERHATIAN PENTING: Untuk mengimplementasikan 'chid' (mengganti package name dan folder Java)
+      # tanpa make.sh, kita harus menggunakan script Bash yang kompleks.
+      # Solusi yang lebih sederhana dan kuat adalah: KEMBALI menggunakan make.sh HANYA untuk apply_config!
+
+      - name: Grant Execute Permission for make.sh
+        run: chmod +x make.sh
+
+      - name: Apply Configuration from webapk.conf
+        # Kita menggunakan make.sh HANYA untuk menerapkan konfigurasi: chid, rename, dll.
+        # Ini penting karena make.sh berisi logika kompleks untuk mengganti package name di banyak file.
+        run: ./make.sh apply_config webapk.conf
+
       - name: Build Signed App Bundle (AAB)
         run: ./gradlew :app:bundleRelease --stacktrace
 
       - name: Upload Signed AAB Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.get_appname.outputs.APP_NAME }}-release-aab
-          # Lokasi standar output AAB
+          name: ${{ steps.generate_config.outputs.APP_NAME }}-release-aab
           path: app/build/outputs/bundle/release/*.aab 
           retention-days: 7
 
-      # =======================================================
-      # LANGKAH 2: BUILD SIGNED RELEASE APK - Untuk distribusi manual/pengujian
-      # =======================================================
       - name: Build Signed Release APK
-        # Membangun APK yang ditandatangani. Outputnya akan diletakkan di app/build/outputs/apk/release/
         run: ./gradlew :app:assembleRelease --stacktrace
 
       - name: Upload Signed APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.get_appname.outputs.APP_NAME }}-release-apk
-          # Lokasi standar output APK yang ditandatangani
+          name: ${{ steps.generate_config.outputs.APP_NAME }}-release-apk
           path: app/build/outputs/apk/release/*.apk 
           retention-days: 7
