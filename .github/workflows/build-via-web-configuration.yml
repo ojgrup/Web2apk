@@ -35,51 +35,22 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      # --- LANGKAH BARU: MEMBUAT KONFIGURASI DARI INPUT WEBSITE ---
-      - name: Generate Config File
-        id: generate_config
-        run: |
-          # 1. Tulis konfigurasi ke webapk.conf
-          echo "url = ${{ github.event.inputs.app_url }}" > webapk.conf
-          echo "id = ${{ github.event.inputs.app_id }}" >> webapk.conf
-          echo "name = ${{ github.event.inputs.app_name }}" >> webapk.conf
-          echo "userAgent = MobileApp" >> webapk.conf
-          
-          # 2. Tangani Ikon: Download ikon jika URL disediakan
-          ICON_PATH=""
-          if [ -n "${{ github.event.inputs.icon_url }}" ]; then
-              echo "Downloading custom icon from: ${{ github.event.inputs.icon_url }}"
-              ICON_URL="${{ github.event.inputs.icon_url }}"
-              
-              # Tentukan nama file yang didownload
-              ICON_FILE="app/downloaded_icon.png"
-              
-              # Download ikon
-              curl -L -o "$ICON_FILE" "$ICON_URL"
-              
-              if [ -f "$ICON_FILE" ]; then
-                  echo "icon_file_path=$ICON_FILE" >> $GITHUB_OUTPUT
-                  ICON_PATH="app/downloaded_icon.png"
-                  echo "icon = $ICON_PATH" >> webapk.conf
-                  echo "Ikon akan diambil dari $ICON_PATH"
-              else
-                  echo "Warning: Failed to download icon from URL. Using default."
-              fi
-          fi
-          
-          # 3. Ekstrak App Name untuk penamaan Artifact
-          APP_NAME="${{ github.event.inputs.app_id }}"
-          echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
-
-      # --- KONFIGURASI SIGNING (Tetap sama) ---
       - name: Configure Signing Properties
+        # Menulis secrets ke gradle.properties
         run: |
-          if [ ! -f "app/${{ secrets.MYAPP_RELEASE_STORE_FILE }}" ]; then
-            echo "Error: Keystore file app/${{ secrets.MYAPP_RELEASE_STORE_FILE }} not found in repository."
+          # MYAPP_RELEASE_STORE_FILE seharusnya hanya 'web2apk_rilis.jks' (tanpa app/)
+          STORE_FILE="${{ secrets.MYAPP_RELEASE_STORE_FILE }}"
+          
+          if [ ! -f "app/$STORE_FILE" ]; then
+            echo "Error: Keystore file app/$STORE_FILE not found in repository."
+            # Periksa jika Anda menggunakan Keystore dari Secret Environment
+            if [ "$STORE_FILE" = "" ]; then
+                echo "Warning: MYAPP_RELEASE_STORE_FILE secret is empty. Building might fail if signing is required."
+            fi
             exit 1
           fi
           
-          echo "MYAPP_RELEASE_STORE_FILE=${{ secrets.MYAPP_RELEASE_STORE_FILE }}" >> gradle.properties
+          echo "MYAPP_RELEASE_STORE_FILE=$STORE_FILE" >> gradle.properties
           echo "MYAPP_RELEASE_STORE_PASSWORD=${{ secrets.MYAPP_RELEASE_STORE_PASSWORD }}" >> gradle.properties
           echo "MYAPP_RELEASE_KEY_ALIAS=${{ secrets.MYAPP_RELEASE_KEY_ALIAS }}" >> gradle.properties
           echo "MYAPP_RELEASE_KEY_PASSWORD=${{ secrets.MYAPP_RELEASE_KEY_PASSWORD }}" >> gradle.properties
@@ -92,37 +63,101 @@ jobs:
       - name: Grant Execute Permission for Gradle Wrapper
         run: chmod +x gradlew
 
-      # --- BUILD DAN UPLOAD ARTIFACT (Harus menggunakan make.sh untuk apply_config) ---
-      # Karena kita tidak ingin menggunakan make.sh lagi, kita harus meniru fungsi utamanya: chid, rename, set_var, set_icon.
-      
-      # PERHATIAN PENTING: Untuk mengimplementasikan 'chid' (mengganti package name dan folder Java)
-      # tanpa make.sh, kita harus menggunakan script Bash yang kompleks.
-      # Solusi yang lebih sederhana dan kuat adalah: KEMBALI menggunakan make.sh HANYA untuk apply_config!
+      # --- LANGKAH PENGGANTI make.sh: APPLY CONFIGURATION DAN RENAME PACKAGE ---
+      - name: Apply Configuration and Rename Package (TANPA make.sh)
+        id: apply_config
+        run: |
+          # Dapatkan input dari web
+          NEW_APP_ID="${{ github.event.inputs.app_id }}"
+          NEW_APP_NAME="${{ github.event.inputs.app_name }}"
+          NEW_URL="${{ github.event.inputs.app_url }}"
+          ICON_URL="${{ github.event.inputs.icon_url }}"
+          
+          # Dapatkan package ID lama dari build.gradle
+          OLD_APP_ID=$(grep -Po '(?<=applicationId "com\.)[^.]*' app/build.gradle)
+          
+          # --- 1. RENAME PACKAGE ID (chid) ---
+          if [ "$OLD_APP_ID" != "$NEW_APP_ID" ]; then
+              echo "Changing package ID from $OLD_APP_ID to $NEW_APP_ID..."
+              
+              OLD_PKG="com.$OLD_APP_ID.webtoapk"
+              NEW_PKG="com.$NEW_APP_ID.webtoapk"
+              
+              # Ganti package ID di semua file penting (gradle, xml, java)
+              find . -type f \( -name '*.gradle' -o -name '*.xml' -o -name '*.java' \) -exec \
+                  sed -i "s/$OLD_PKG/$NEW_PKG/g" {} +
+                  
+              # Pindahkan folder Java
+              OLD_PATH="app/src/main/java/com/$OLD_APP_ID"
+              NEW_PATH="app/src/main/java/com/$NEW_APP_ID"
+              
+              if [ -d "$OLD_PATH" ]; then
+                  echo "Moving directory from $OLD_PATH to $NEW_PATH..."
+                  mkdir -p app/src/main/java/com/
+                  mv "$OLD_PATH" "$NEW_PATH"
+              else
+                  echo "Error: Old package directory $OLD_PATH not found. Continuing..."
+              fi
+          fi
+          
+          # --- 2. GANTI DISPLAY NAME (rename) ---
+          echo "Changing display name to $NEW_APP_NAME..."
+          ESCAPED_NAME=$(echo "$NEW_APP_NAME" | sed 's/[\/&]/\\&/g')
+          # Mengganti app_name di semua strings.xml
+          find app/src/main/res/values* -name "strings.xml" | while read xml_file; do
+             sed -i "s|<string name=\"app_name\">[^<]*</string>|<string name=\"app_name\">$ESCAPED_NAME</string>|" "$xml_file"
+          done
+          
+          # --- 3. GANTI URL (set_var) dan Ikon (set_icon) ---
+          JAVA_FILE="app/src/main/java/com/$NEW_APP_ID/webtoapk/MainActivity.java"
+          
+          # Ganti URL
+          ESCAPED_URL=$(echo "$NEW_URL" | sed 's/[\/&]/\\&/g')
+          sed -i "s|String url = \"[^\"]*\";|String url = \"$ESCAPED_URL\";|" "$JAVA_FILE"
+          
+          # Download dan Ganti Ikon
+          if [ -n "$ICON_URL" ]; then
+              echo "Downloading and replacing icon..."
+              mkdir -p app/src/main/res/mipmap/
+              
+              # Download ikon ke lokasi yang tepat
+              curl -L -o "app/src/main/res/mipmap/ic_launcher.png" "$ICON_URL"
+              
+              if [ $? -eq 0 ]; then
+                  echo "Icon replaced successfully."
+              else
+                  echo "Warning: Failed to download icon from URL. Using existing icon."
+              fi
+          fi
+          
+          # --- OUTPUT UNTUK ARTIFACT ---
+          echo "APP_NAME=$NEW_APP_ID" >> $GITHUB_OUTPUT
 
-      - name: Grant Execute Permission for make.sh
-        run: chmod +x make.sh
 
-      - name: Apply Configuration from webapk.conf
-        # Kita menggunakan make.sh HANYA untuk menerapkan konfigurasi: chid, rename, dll.
-        # Ini penting karena make.sh berisi logika kompleks untuk mengganti package name di banyak file.
-        run: ./make.sh apply_config webapk.conf
-
+      # =======================================================
+      # BUILD SIGNED APP BUNDLE (AAB)
+      # =======================================================
       - name: Build Signed App Bundle (AAB)
         run: ./gradlew :app:bundleRelease --stacktrace
 
       - name: Upload Signed AAB Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.generate_config.outputs.APP_NAME }}-release-aab
+          name: ${{ steps.apply_config.outputs.APP_NAME }}-release-aab
+          # Lokasi standar output AAB
           path: app/build/outputs/bundle/release/*.aab 
           retention-days: 7
 
+      # =======================================================
+      # BUILD SIGNED RELEASE APK
+      # =======================================================
       - name: Build Signed Release APK
         run: ./gradlew :app:assembleRelease --stacktrace
 
       - name: Upload Signed APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.generate_config.outputs.APP_NAME }}-release-apk
+          name: ${{ steps.apply_config.outputs.APP_NAME }}-release-apk
+          # Lokasi standar output APK yang ditandatangani
           path: app/build/outputs/apk/release/*.apk 
           retention-days: 7
