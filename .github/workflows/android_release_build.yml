@@ -1,4 +1,4 @@
-name: Build dan Sign AAB Rilis (Direct Gradle)
+name: Build dan Sign AAB/APK Rilis (Direct Gradle)
 
 on:
   push:
@@ -51,16 +51,31 @@ jobs:
       - name: Grant Execute Permission for Gradle Wrapper
         run: chmod +x gradlew
 
-      - name: Build Signed App Bundle (Direct Gradle)
-        # Langsung panggil task Gradle untuk membuat AAB yang sudah ditandatangani
+      # =======================================================
+      # LANGKAH 1: BUILD SIGNED APP BUNDLE (AAB) - Untuk Google Play
+      # =======================================================
+      - name: Build Signed App Bundle (AAB)
         run: ./gradlew :app:bundleRelease --stacktrace
 
       - name: Upload Signed AAB Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.get_appname.outputs.APP_NAME }}-release-aab
-          # JALUR BARU: Mengambil file AAB di lokasi default Gradle.
-          # Catatan: make.sh (yang lama) memindahkan file. Karena kita tidak menggunakan make.sh lagi,
-          # kita kembali ke lokasi output standar.
+          # Lokasi standar output AAB
           path: app/build/outputs/bundle/release/*.aab 
+          retention-days: 7
+
+      # =======================================================
+      # LANGKAH 2: BUILD SIGNED RELEASE APK - Untuk distribusi manual/pengujian
+      # =======================================================
+      - name: Build Signed Release APK
+        # Membangun APK yang ditandatangani. Outputnya akan diletakkan di app/build/outputs/apk/release/
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Upload Signed APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.get_appname.outputs.APP_NAME }}-release-apk
+          # Lokasi standar output APK yang ditandatangani
+          path: app/build/outputs/apk/release/*.apk 
           retention-days: 7
